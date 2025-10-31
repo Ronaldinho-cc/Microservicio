@@ -1,0 +1,86 @@
+# application.yml - Optimizado para reducir consumo de memoria
+spring:
+  application:
+    name: ${NOMBRE_MICROSERVICIO:ms-water-quality}
+  main:
+    lazy-initialization: true
+    banner-mode: "off"
+  data:
+    mongodb:
+      uri: mongodb+srv://${MONGO_USERNAME:sistemajass}:${MONGO_PASSWORD:ZC7O1Ok40SwkfEje}@sistemajass.jn6cpoz.mongodb.net/${MONGO_DATABASE:JASS_DIGITAL}?retryWrites=true&w=majority&maxPoolSize=2&minPoolSize=1&maxIdleTimeMS=20000&serverSelectionTimeoutMS=3000&connectTimeoutMS=3000
+  web:
+    resources:
+      cache:
+        period: 86400
+  codec:
+    max-in-memory-size: 1MB
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: https://lab.vallegrande.edu.pe/jass/keycloak/realms/sistema-jass
+          jwk-set-uri: https://lab.vallegrande.edu.pe/jass/keycloak/realms/sistema-jass/protocol/openid-connect/certs
+
+server:
+  port: ${PORT:8087}
+  forward-headers-strategy: framework
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/xml,text/plain
+    min-response-size: 1024
+  http2:
+    enabled: true
+  tomcat:
+    threads:
+      max: 50
+      min-spare: 5
+    max-connections: 100
+    accept-count: 10
+  netty:
+    connection-timeout: 3000
+
+management:
+  endpoints:
+    enabled-by-default: false
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      enabled: true
+      show-details: never
+  metrics:
+    enabled: false
+  tracing:
+    enabled: false
+  health:
+    probes:
+      enabled: false
+    mongo:
+      enabled: false
+
+logging:
+  level:
+    root: ERROR
+    org.springframework: ERROR
+    org.mongodb: ERROR
+    reactor.netty: ERROR
+    io.netty: ERROR
+    pe.edu.vallegrande: ERROR
+  pattern:
+    console: "%msg%n"
+
+info:
+  app:
+    name: Water Quality Microservice
+    description: Microservicio para gestión de calidad de agua
+    version: 1.0.0
+
+user-service:
+  base-url: ${USER_SERVICE_URL:https://lab.vallegrande.edu.pe/jass/ms-users}
+  timeout: 3000
+
+organization-service:
+  base-url: ${ORGANIZATION_SERVICE_URL:https://lab.vallegrande.edu.pe/jass/ms-organization}
+  token: ${ORGANIZATION_SERVICE_TOKEN:your-super-admin-token-here}
+  timeout: 3000
