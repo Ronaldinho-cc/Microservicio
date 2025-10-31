@@ -66,11 +66,11 @@ pipeline {
         stage('Code Analysis') {
             steps {
                 echo '🔍 Analizando código con SonarCloud...'
-                withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
+                withCredentials([string(credentialsId: 'sonarcloud-token', variable: 'SONAR_TOKEN')]) {
                     sh '''
                         mvn clean verify sonar:sonar \
-                            -Dsonar.projectKey=PRS-Back \
-                            -Dsonar.organization=marialazaro \
+                            -Dsonar.projectKey=MiAppBackend \
+                            -Dsonar.organization=ronaldinho-cc \
                             -Dsonar.host.url=https://sonarcloud.io \
                             -Dsonar.token=$SONAR_TOKEN
                     '''
