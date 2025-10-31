@@ -15,7 +15,7 @@ pipeline {
         stage('Checkout') {
             steps {
                 echo '📦 Clonando repositorio...'
-                git branch: 'main', url: "${GITHUB_REPO}"
+                git branch: 'develop-clean', url: "${GITHUB_REPO}"
             }
         }
 
