@@ -1,6 +1,10 @@
 pipeline {
     agent any
 
+    parameters {
+        booleanParam(name: 'CLEAN_MAVEN_CACHE', defaultValue: false, description: 'Limpiar caché de Maven antes del build')
+    }
+
     tools {
         jdk 'Java17'
         maven 'M3'
@@ -8,7 +12,8 @@ pipeline {
 
     environment {
         GITHUB_REPO = 'https://github.com/Ronaldinho-cc/Microservicio.git'
-        MAVEN_OPTS = '-Xmx1024m'
+        MAVEN_OPTS = '-Xmx1024m -Dmaven.wagon.http.retryHandler.count=3'
+        MAVEN_CONFIG = '-Dmaven.wagon.httpconnectionManager.ttlSeconds=120'
     }
 
     stages {
@@ -16,20 +21,36 @@ pipeline {
             steps {
                 echo '📦 Clonando repositorio...'
                 git branch: 'develop-clean', url: "${GITHUB_REPO}"
+                
+                echo '🧹 Limpiando caché de Maven si es necesario...'
+                script {
+                    if (params.CLEAN_MAVEN_CACHE == true) {
+                        sh 'rm -rf ~/.m2/repository'
+                        echo '✅ Caché de Maven limpiada'
+                    }
+                }
             }
         }
 
         stage('Build') {
             steps {
                 echo '⚙️ Compilando el proyecto...'
-                sh 'mvn clean compile'
+                retry(3) {
+                    sh '''
+                        mvn clean compile \
+                            -s maven-settings.xml \
+                            -Dmaven.wagon.http.retryHandler.count=3 \
+                            -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 \
+                            -Dmaven.wagon.http.pool=false
+                    '''
+                }
             }
         }
 
         stage('Unit Tests') {
             steps {
                 echo '🧪 Ejecutando pruebas unitarias...'
-                sh 'mvn test -Dspring.profiles.active=test'
+                sh 'mvn test -s maven-settings.xml -Dspring.profiles.active=test'
             }
             post {
                 always {
@@ -54,7 +75,7 @@ pipeline {
         stage('Integration Tests') {
             steps {
                 echo '🔗 Ejecutando pruebas de integración...'
-                sh 'mvn test -Dtest=*IntegrationTest'
+                sh 'mvn test -s maven-settings.xml -Dtest=*IntegrationTest'
             }
             post {
                 always {
@@ -69,6 +90,7 @@ pipeline {
                 withCredentials([string(credentialsId: 'sonarcloud-token', variable: 'SONAR_TOKEN')]) {
                     sh '''
                         mvn clean verify sonar:sonar \
+                            -s maven-settings.xml \
                             -Dsonar.projectKey=MiAppBackend \
                             -Dsonar.organization=ronaldinho-cc \
                             -Dsonar.host.url=https://sonarcloud.io \
