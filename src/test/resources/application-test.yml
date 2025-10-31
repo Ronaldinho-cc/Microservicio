@@ -5,6 +5,17 @@ spring:
       database: test_water_quality
       port: 0  # Puerto aleatorio para MongoDB embebido
 
+de:
+  flapdoodle:
+    mongodb:
+      embedded:
+        version: 4.4.18
+
+spring:
+  mongodb:
+    embedded:
+      version: 4.4.18
+
 # Configuración de logging para pruebas
 logging:
   level:

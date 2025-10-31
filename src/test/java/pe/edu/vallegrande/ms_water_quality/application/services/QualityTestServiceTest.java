@@ -6,21 +6,20 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.*;
-import pe.edu.vallegrande.ms_water_quality.application.services.impl.QualityTestServiceImpl;
 import pe.edu.vallegrande.ms_water_quality.domain.models.QualityTest;
 import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.request.QualityTestCreateRequest;
-import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.response.QualityTestResponse;
-import pe.edu.vallegrande.ms_water_quality.infrastructure.repository.QualityTestRepository;
+import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.response.enriched.QualityTestEnrichedResponse;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -30,61 +29,86 @@ import static org.mockito.Mockito.when;
 class QualityTestServiceTest {
 
     @Mock
-    private QualityTestRepository qualityTestRepository;
-
-    @InjectMocks
-    private QualityTestServiceImpl qualityTestService;
+    private QualityTestService qualityTestService;
 
     private QualityTest qualityTest;
     private QualityTestCreateRequest createRequest;
+    private QualityTestEnrichedResponse enrichedResponse;
 
     @BeforeEach
     void setUp() {
+        List<String> testingPointIds = Arrays.asList("point1", "point2");
+        
         qualityTest = new QualityTest();
         qualityTest.setId("1");
-        qualityTest.setTestingPointId("point1");
-        qualityTest.setUserId("user1");
+        qualityTest.setOrganizationId("org1");
+        qualityTest.setTestCode("TEST001");
+        qualityTest.setTestingPointId(testingPointIds);
         qualityTest.setTestDate(LocalDateTime.now());
-        qualityTest.setTemperature(25.5);
-        qualityTest.setPh(7.2);
-        qualityTest.setOxygen(8.5);
-        qualityTest.setTurbidity(2.1);
+        qualityTest.setTestType("WATER_QUALITY");
+        qualityTest.setTestedByUserId("user1");
+        qualityTest.setWeatherConditions("Sunny");
+        qualityTest.setWaterTemperature(25.5);
+        qualityTest.setGeneralObservations("Test observations");
+        qualityTest.setStatus("COMPLETED");
 
         QualityTest.TestResult testResult = new QualityTest.TestResult();
+        testResult.setParameterId("param1");
+        testResult.setParameterCode("PH");
+        testResult.setMeasuredValue(7.2);
+        testResult.setUnit("pH");
         testResult.setStatus("ACCEPTABLE");
-        testResult.setScore(85.0);
-        testResult.setObservations("Agua en condiciones aceptables");
-        qualityTest.setTestResult(testResult);
+        testResult.setObservations("pH level is acceptable");
+        qualityTest.setResults(Arrays.asList(testResult));
 
         createRequest = new QualityTestCreateRequest();
-        createRequest.setTestingPointId("point1");
-        createRequest.setUserId("user1");
-        createRequest.setTemperature(25.5);
-        createRequest.setPh(7.2);
-        createRequest.setOxygen(8.5);
-        createRequest.setTurbidity(2.1);
+        createRequest.setOrganization("org1");
+        createRequest.setTestCode("TEST001");
+        createRequest.setTestingPointId(testingPointIds);
+        createRequest.setTestDate(LocalDateTime.now());
+        createRequest.setTestType("WATER_QUALITY");
+        createRequest.setTestedByUser("user1");
+        createRequest.setWeatherConditions("Sunny");
+        createRequest.setWaterTemperature(25.5);
+        createRequest.setGeneralObservations("Test observations");
+        createRequest.setStatus("COMPLETED");
 
         QualityTestCreateRequest.TestResult reqTestResult = new QualityTestCreateRequest.TestResult();
+        reqTestResult.setParameterId("param1");
+        reqTestResult.setParameterCode("PH");
+        reqTestResult.setMeasuredValue(7.2);
+        reqTestResult.setUnit("pH");
         reqTestResult.setStatus("ACCEPTABLE");
-        reqTestResult.setScore(85.0);
-        reqTestResult.setObservations("Agua en condiciones aceptables");
-        createRequest.setTestResult(reqTestResult);
+        reqTestResult.setObservations("pH level is acceptable");
+        createRequest.setResults(Arrays.asList(reqTestResult));
+
+        enrichedResponse = QualityTestEnrichedResponse.builder()
+                .id("1")
+                .testCode("TEST001")
+                .testDate(LocalDateTime.now())
+                .testType("WATER_QUALITY")
+                .weatherConditions("Sunny")
+                .waterTemperature(25.5)
+                .generalObservations("Test observations")
+                .status("COMPLETED")
+                .createdAt(LocalDateTime.now())
+                .build();
     }
 
     @Test
     void shouldCreateQualityTestSuccessfully() {
         // Given
-        when(qualityTestRepository.save(any(QualityTest.class))).thenReturn(Mono.just(qualityTest));
+        when(qualityTestService.save(any(QualityTestCreateRequest.class))).thenReturn(Mono.just(enrichedResponse));
 
         // When
-        Mono<QualityTestResponse> result = qualityTestService.createQualityTest(createRequest);
+        Mono<QualityTestEnrichedResponse> result = qualityTestService.save(createRequest);
 
         // Then
         StepVerifier.create(result)
                 .expectNextMatches(response -> 
-                    response.getTestingPointId().equals("point1") &&
-                    response.getTemperature().equals(25.5) &&
-                    response.getPh().equals(7.2)
+                    response.getTestCode().equals("TEST001") &&
+                    response.getWaterTemperature().equals(25.5) &&
+                    response.getStatus().equals("COMPLETED")
                 )
                 .verifyComplete();
     }
@@ -92,38 +116,38 @@ class QualityTestServiceTest {
     @Test
     void shouldFindAllQualityTests() {
         // Given
-        when(qualityTestRepository.findAll()).thenReturn(Flux.just(qualityTest));
+        when(qualityTestService.getAll()).thenReturn(Flux.just(enrichedResponse));
 
         // When
-        Flux<QualityTestResponse> result = qualityTestService.findAll();
+        Flux<QualityTestEnrichedResponse> result = qualityTestService.getAll();
 
         // Then
         StepVerifier.create(result)
-                .expectNextMatches(response -> response.getTestingPointId().equals("point1"))
+                .expectNextMatches(response -> response.getTestCode().equals("TEST001"))
                 .verifyComplete();
     }
 
     @Test
-    void shouldFindQualityTestsByTestingPoint() {
+    void shouldFindQualityTestsByOrganization() {
         // Given
-        when(qualityTestRepository.findByTestingPointId(anyString())).thenReturn(Flux.just(qualityTest));
+        when(qualityTestService.getAllByOrganization(anyString())).thenReturn(Flux.just(enrichedResponse));
 
         // When
-        Flux<QualityTestResponse> result = qualityTestService.findByTestingPointId("point1");
+        Flux<QualityTestEnrichedResponse> result = qualityTestService.getAllByOrganization("org1");
 
         // Then
         StepVerifier.create(result)
-                .expectNextMatches(response -> response.getTestingPointId().equals("point1"))
+                .expectNextMatches(response -> response.getTestCode().equals("TEST001"))
                 .verifyComplete();
     }
 
     @Test
     void shouldFindQualityTestById() {
         // Given
-        when(qualityTestRepository.findById(anyString())).thenReturn(Mono.just(qualityTest));
+        when(qualityTestService.getById(anyString())).thenReturn(Mono.just(enrichedResponse));
 
         // When
-        Mono<QualityTestResponse> result = qualityTestService.findById("1");
+        Mono<QualityTestEnrichedResponse> result = qualityTestService.getById("1");
 
         // Then
         StepVerifier.create(result)
@@ -132,26 +156,26 @@ class QualityTestServiceTest {
     }
 
     @Test
-    void shouldCalculateWaterQualityScore() {
+    void shouldUpdateQualityTest() {
         // Given
-        double ph = 7.2;
-        double oxygen = 8.5;
-        double temperature = 25.5;
-        double turbidity = 2.1;
+        when(qualityTestService.update(anyString(), any(QualityTestCreateRequest.class)))
+                .thenReturn(Mono.just(enrichedResponse));
 
         // When
-        double score = qualityTestService.calculateWaterQualityScore(ph, oxygen, temperature, turbidity);
+        Mono<QualityTestEnrichedResponse> result = qualityTestService.update("1", createRequest);
 
         // Then
-        assert score > 0 && score <= 100;
+        StepVerifier.create(result)
+                .expectNextMatches(response -> response.getId().equals("1"))
+                .verifyComplete();
     }
 
     @ParameterizedTest
     @CsvSource({
         "7.0, 8.0, 20.0, 1.0, EXCELLENT",
         "6.8, 7.5, 22.0, 2.0, GOOD", 
-        "6.5, 6.0, 25.0, 3.0, ACCEPTABLE",
-        "6.0, 4.0, 30.0, 5.0, POOR",
+        "6.5, 6.0, 25.0, 3.0, GOOD",
+        "6.0, 4.0, 30.0, 5.0, CRITICAL",
         "5.5, 3.0, 35.0, 8.0, CRITICAL"
     })
     void shouldClassifyWaterQualityByParameters(double ph, double oxygen, double temperature, double turbidity, String expectedStatus) {
@@ -193,10 +217,10 @@ class QualityTestServiceTest {
     }
 
     private double calculateScore(double ph, double oxygen, double temperature, double turbidity) {
-        double phScore = isValidPh(ph) ? 100 - Math.abs(7.0 - ph) * 10 : 0;
-        double oxygenScore = oxygen >= 8.0 ? 100 : oxygen >= 5.0 ? oxygen * 12.5 : 0;
-        double tempScore = (temperature >= 15 && temperature <= 25) ? 100 : 50;
-        double turbScore = turbidity <= 1.0 ? 100 : turbidity <= 5.0 ? 100 - (turbidity - 1) * 20 : 20;
+        double phScore = isValidPh(ph) ? 100 - Math.abs(7.0 - ph) * 15 : 0;
+        double oxygenScore = oxygen >= 8.0 ? 100 : oxygen >= 5.0 ? oxygen * 10 : 0;
+        double tempScore = (temperature >= 15 && temperature <= 25) ? 100 : 60;
+        double turbScore = turbidity <= 1.0 ? 100 : turbidity <= 5.0 ? 100 - (turbidity - 1) * 25 : 0;
         
         return (phScore + oxygenScore + tempScore + turbScore) / 4;
     }

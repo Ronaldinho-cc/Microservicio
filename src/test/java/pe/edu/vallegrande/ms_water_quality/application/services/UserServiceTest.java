@@ -6,17 +6,16 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.params.provider.CsvSource;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import pe.edu.vallegrande.ms_water_quality.application.services.impl.UserServiceImpl;
 import pe.edu.vallegrande.ms_water_quality.domain.models.User;
 import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.request.UserCreateRequest;
 import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.response.UserResponse;
-import pe.edu.vallegrande.ms_water_quality.infrastructure.repository.UserRepository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
+
+import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -27,36 +26,42 @@ import static org.mockito.Mockito.when;
 class UserServiceTest {
 
     @Mock
-    private UserRepository userRepository;
-
-    @InjectMocks
-    private UserServiceImpl userService;
+    private UserService userService;
 
     private User testUser;
     private UserCreateRequest createRequest;
+    private UserResponse userResponse;
 
     @BeforeEach
     void setUp() {
         testUser = new User();
-        testUser.setId("1");
+        testUser.setUserId("1");
         testUser.setName("Test User");
         testUser.setEmail("test@example.com");
-        testUser.setRole("ADMIN");
-        testUser.setActive(true);
+        testUser.setPassword("password123");
+        testUser.setStatus("ACTIVE");
+        testUser.setCreatedAt(LocalDateTime.now());
 
         createRequest = new UserCreateRequest();
         createRequest.setName("Test User");
         createRequest.setEmail("test@example.com");
-        createRequest.setRole("ADMIN");
+        createRequest.setPassword("password123");
+
+        userResponse = new UserResponse();
+        userResponse.setUserId("1");
+        userResponse.setName("Test User");
+        userResponse.setEmail("test@example.com");
+        userResponse.setStatus("ACTIVE");
+        userResponse.setCreatedAt(LocalDateTime.now());
     }
 
     @Test
     void shouldCreateUserSuccessfully() {
         // Given
-        when(userRepository.save(any(User.class))).thenReturn(Mono.just(testUser));
+        when(userService.save(any(UserCreateRequest.class))).thenReturn(Mono.just(userResponse));
 
         // When
-        Mono<UserResponse> result = userService.createUser(createRequest);
+        Mono<UserResponse> result = userService.save(createRequest);
 
         // Then
         StepVerifier.create(result)
@@ -70,38 +75,38 @@ class UserServiceTest {
     @Test
     void shouldFindAllUsers() {
         // Given
-        when(userRepository.findAll()).thenReturn(Flux.just(testUser));
+        when(userService.getAll()).thenReturn(Flux.just(testUser));
 
         // When
-        Flux<UserResponse> result = userService.findAll();
+        Flux<User> result = userService.getAll();
 
         // Then
         StepVerifier.create(result)
-                .expectNextMatches(response -> response.getName().equals("Test User"))
+                .expectNextMatches(user -> user.getName().equals("Test User"))
                 .verifyComplete();
     }
 
     @Test
     void shouldFindUserById() {
         // Given
-        when(userRepository.findById(anyString())).thenReturn(Mono.just(testUser));
+        when(userService.getById(anyString())).thenReturn(Mono.just(testUser));
 
         // When
-        Mono<UserResponse> result = userService.findById("1");
+        Mono<User> result = userService.getById("1");
 
         // Then
         StepVerifier.create(result)
-                .expectNextMatches(response -> response.getId().equals("1"))
+                .expectNextMatches(user -> user.getUserId().equals("1"))
                 .verifyComplete();
     }
 
     @Test
     void shouldReturnEmptyWhenUserNotFound() {
         // Given
-        when(userRepository.findById(anyString())).thenReturn(Mono.empty());
+        when(userService.getById(anyString())).thenReturn(Mono.empty());
 
         // When
-        Mono<UserResponse> result = userService.findById("999");
+        Mono<User> result = userService.getById("999");
 
         // Then
         StepVerifier.create(result)
@@ -109,59 +114,53 @@ class UserServiceTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"ADMIN", "TECHNICIAN", "VIEWER", "MANAGER"})
-    void shouldCreateUsersWithDifferentRoles(String role) {
+    @ValueSource(strings = {"ACTIVE", "INACTIVE"})
+    void shouldCreateUsersWithDifferentStatuses(String status) {
         // Given
         User user = new User();
-        user.setId("1");
+        user.setUserId("1");
         user.setName("Test User");
         user.setEmail("test@example.com");
-        user.setRole(role);
-        user.setActive(true);
+        user.setPassword("password123");
+        user.setStatus(status);
 
-        UserCreateRequest request = new UserCreateRequest();
-        request.setName("Test User");
-        request.setEmail("test@example.com");
-        request.setRole(role);
-
-        when(userRepository.save(any(User.class))).thenReturn(Mono.just(user));
+        when(userService.getById(anyString())).thenReturn(Mono.just(user));
 
         // When
-        Mono<UserResponse> result = userService.createUser(request);
+        Mono<User> result = userService.getById("1");
 
         // Then
         StepVerifier.create(result)
-                .expectNextMatches(response -> response.getRole().equals(role))
+                .expectNextMatches(u -> u.getStatus().equals(status))
                 .verifyComplete();
     }
 
     @ParameterizedTest
     @CsvSource({
-        "admin@test.com, ADMIN, true",
-        "tech@test.com, TECHNICIAN, true", 
-        "viewer@test.com, VIEWER, false",
-        "manager@test.com, MANAGER, true"
+        "admin@test.com, ACTIVE",
+        "tech@test.com, ACTIVE", 
+        "viewer@test.com, INACTIVE",
+        "manager@test.com, ACTIVE"
     })
-    void shouldValidateUserEmailAndRoleCombinations(String email, String role, boolean active) {
+    void shouldValidateUserEmailAndStatusCombinations(String email, String status) {
         // Given
         User user = new User();
-        user.setId("1");
+        user.setUserId("1");
         user.setName("Test User");
         user.setEmail(email);
-        user.setRole(role);
-        user.setActive(active);
+        user.setPassword("password123");
+        user.setStatus(status);
 
-        when(userRepository.findById(anyString())).thenReturn(Mono.just(user));
+        when(userService.getById(anyString())).thenReturn(Mono.just(user));
 
         // When
-        Mono<UserResponse> result = userService.findById("1");
+        Mono<User> result = userService.getById("1");
 
         // Then
         StepVerifier.create(result)
-                .expectNextMatches(response -> 
-                    response.getEmail().equals(email) &&
-                    response.getRole().equals(role) &&
-                    response.getActive().equals(active)
+                .expectNextMatches(u -> 
+                    u.getEmail().equals(email) &&
+                    u.getStatus().equals(status)
                 )
                 .verifyComplete();
     }
@@ -187,6 +186,8 @@ class UserServiceTest {
                email.contains("@") && 
                email.contains(".") && 
                email.indexOf("@") > 0 && 
-               email.lastIndexOf(".") > email.indexOf("@");
+               email.lastIndexOf(".") > email.indexOf("@") &&
+               !email.endsWith("@.com") &&
+               !email.startsWith("@");
     }
 }

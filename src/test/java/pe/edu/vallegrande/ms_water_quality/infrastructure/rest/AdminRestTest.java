@@ -6,24 +6,25 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import pe.edu.vallegrande.ms_water_quality.application.services.UserService;
 import pe.edu.vallegrande.ms_water_quality.application.services.TestingPointService;
 import pe.edu.vallegrande.ms_water_quality.application.services.QualityTestService;
 import pe.edu.vallegrande.ms_water_quality.application.services.DailyRecordService;
 import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.ResponseDto;
-import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.response.UserResponse;
+import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.response.enriched.TestingPointEnrichedResponse;
+import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.response.enriched.QualityTestEnrichedResponse;
+import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.response.enriched.DailyRecordEnrichedResponse;
 import pe.edu.vallegrande.ms_water_quality.infrastructure.rest.admin.AdminRest;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AdminRestTest {
-
-    @Mock
-    private UserService userService;
 
     @Mock
     private TestingPointService testingPointService;
@@ -37,65 +38,85 @@ class AdminRestTest {
     @InjectMocks
     private AdminRest adminRest;
 
-    private UserResponse userResponse;
+    private TestingPointEnrichedResponse testingPointResponse;
+    private QualityTestEnrichedResponse qualityTestResponse;
+    private DailyRecordEnrichedResponse dailyRecordResponse;
 
     @BeforeEach
     void setUp() {
-        userResponse = new UserResponse();
-        userResponse.setId("1");
-        userResponse.setName("Test User");
-        userResponse.setEmail("test@example.com");
-        userResponse.setRole("ADMIN");
-        userResponse.setActive(true);
+        testingPointResponse = TestingPointEnrichedResponse.builder()
+                .id("1")
+                .pointCode("TP001")
+                .pointName("Test Point")
+                .pointType("RESERVORIO")
+                .status("ACTIVE")
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        qualityTestResponse = QualityTestEnrichedResponse.builder()
+                .id("1")
+                .testCode("TEST001")
+                .testType("WATER_QUALITY")
+                .status("COMPLETED")
+                .createdAt(LocalDateTime.now())
+                .build();
+
+        dailyRecordResponse = DailyRecordEnrichedResponse.builder()
+                .id("1")
+                .recordCode("REC001")
+                .recordType("CLORO")
+                .acceptable(true)
+                .createdAt(LocalDateTime.now())
+                .build();
     }
 
     @Test
-    void shouldGetAllUsers() {
+    void shouldGetAllTestingPoints() {
         // Given
-        when(userService.findAll()).thenReturn(Flux.just(userResponse));
+        when(testingPointService.getAll()).thenReturn(Flux.just(testingPointResponse));
 
         // When
-        Mono<ResponseDto<Flux<UserResponse>>> result = adminRest.getAllUsers();
+        Mono<ResponseDto<List<TestingPointEnrichedResponse>>> result = adminRest.getAllTestingPoints(null);
 
         // Then
         StepVerifier.create(result)
                 .expectNextMatches(response -> 
-                    response.isSuccess() && 
-                    response.getMessage().equals("Usuarios obtenidos exitosamente")
+                    response.isStatus() && 
+                    response.getData().size() == 1
                 )
                 .verifyComplete();
     }
 
     @Test
-    void shouldGetUserById() {
+    void shouldGetTestingPointById() {
         // Given
-        when(userService.findById("1")).thenReturn(Mono.just(userResponse));
+        when(testingPointService.getById("1")).thenReturn(Mono.just(testingPointResponse));
 
         // When
-        Mono<ResponseDto<UserResponse>> result = adminRest.getUserById("1");
+        Mono<ResponseDto<TestingPointEnrichedResponse>> result = adminRest.getTestingPointById("1");
 
         // Then
         StepVerifier.create(result)
                 .expectNextMatches(response -> 
-                    response.isSuccess() && 
+                    response.isStatus() && 
                     response.getData().getId().equals("1")
                 )
                 .verifyComplete();
     }
 
     @Test
-    void shouldHandleUserNotFound() {
+    void shouldGetAllQualityTests() {
         // Given
-        when(userService.findById("999")).thenReturn(Mono.empty());
+        when(qualityTestService.getAll()).thenReturn(Flux.just(qualityTestResponse));
 
         // When
-        Mono<ResponseDto<UserResponse>> result = adminRest.getUserById("999");
+        Mono<ResponseDto<List<QualityTestEnrichedResponse>>> result = adminRest.getAllTests();
 
         // Then
         StepVerifier.create(result)
                 .expectNextMatches(response -> 
-                    !response.isSuccess() && 
-                    response.getMessage().equals("Usuario no encontrado")
+                    response.isStatus() && 
+                    response.getData().size() == 1
                 )
                 .verifyComplete();
     }

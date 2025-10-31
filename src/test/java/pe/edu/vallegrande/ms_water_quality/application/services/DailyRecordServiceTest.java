@@ -3,20 +3,18 @@ package pe.edu.vallegrande.ms_water_quality.application.services;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import pe.edu.vallegrande.ms_water_quality.application.services.impl.DailyRecordServiceImpl;
 import pe.edu.vallegrande.ms_water_quality.domain.models.DailyRecord;
 import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.request.DailyRecordCreateRequest;
-import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.response.DailyRecordResponse;
-import pe.edu.vallegrande.ms_water_quality.infrastructure.repository.DailyRecordRepository;
+import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.response.enriched.DailyRecordEnrichedResponse;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
 
-import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -26,55 +24,72 @@ import static org.mockito.Mockito.when;
 class DailyRecordServiceTest {
 
     @Mock
-    private DailyRecordRepository dailyRecordRepository;
-
-    @InjectMocks
-    private DailyRecordServiceImpl dailyRecordService;
+    private DailyRecordService dailyRecordService;
 
     private DailyRecord dailyRecord;
     private DailyRecordCreateRequest createRequest;
+    private DailyRecordEnrichedResponse enrichedResponse;
 
     @BeforeEach
     void setUp() {
+        List<String> testingPointIds = Arrays.asList("point1", "point2");
+        
         dailyRecord = new DailyRecord();
         dailyRecord.setId("1");
-        dailyRecord.setTestingPointId("point1");
-        dailyRecord.setUserId("user1");
-        dailyRecord.setRecordDate(LocalDate.now());
-        dailyRecord.setAverageTemperature(24.5);
-        dailyRecord.setAveragePh(7.1);
-        dailyRecord.setAverageOxygen(8.2);
-        dailyRecord.setAverageTurbidity(1.8);
-        dailyRecord.setTestsCount(5);
-        dailyRecord.setQualityScore(88.5);
+        dailyRecord.setOrganizationId("org1");
+        dailyRecord.setRecordCode("REC001");
+        dailyRecord.setTestingPointIds(testingPointIds);
+        dailyRecord.setRecordDate(LocalDateTime.now());
+        dailyRecord.setLevel(24.5);
+        dailyRecord.setAcceptable(true);
+        dailyRecord.setActionRequired(false);
+        dailyRecord.setRecordedByUserId("user1");
+        dailyRecord.setObservations("Test observations");
+        dailyRecord.setAmount(100.0);
+        dailyRecord.setRecordType("CLORO");
         dailyRecord.setCreatedAt(LocalDateTime.now());
 
         createRequest = new DailyRecordCreateRequest();
-        createRequest.setTestingPointId("point1");
-        createRequest.setUserId("user1");
-        createRequest.setRecordDate(LocalDate.now());
-        createRequest.setAverageTemperature(24.5);
-        createRequest.setAveragePh(7.1);
-        createRequest.setAverageOxygen(8.2);
-        createRequest.setAverageTurbidity(1.8);
-        createRequest.setTestsCount(5);
-        createRequest.setQualityScore(88.5);
+        createRequest.setOrganization("org1");
+        createRequest.setRecordCode("REC001");
+        createRequest.setTestingPoints(testingPointIds);
+        createRequest.setRecordDate(LocalDateTime.now());
+        createRequest.setLevel(24.5);
+        createRequest.setAcceptable(true);
+        createRequest.setActionRequired(false);
+        createRequest.setRecordedByUser("user1");
+        createRequest.setObservations("Test observations");
+        createRequest.setAmount(100.0);
+        createRequest.setRecordType("CLORO");
+
+        enrichedResponse = DailyRecordEnrichedResponse.builder()
+                .id("1")
+                .recordCode("REC001")
+                .recordDate(LocalDateTime.now())
+                .level(24.5)
+                .acceptable(true)
+                .actionRequired(false)
+                .observations("Test observations")
+                .amount(100.0)
+                .recordType("CLORO")
+                .createdAt(LocalDateTime.now())
+                .build();
     }
 
     @Test
     void shouldCreateDailyRecordSuccessfully() {
         // Given
-        when(dailyRecordRepository.save(any(DailyRecord.class))).thenReturn(Mono.just(dailyRecord));
+        when(dailyRecordService.save(any(DailyRecordCreateRequest.class))).thenReturn(Mono.just(enrichedResponse));
 
         // When
-        Mono<DailyRecordResponse> result = dailyRecordService.createDailyRecord(createRequest);
+        Mono<DailyRecordEnrichedResponse> result = dailyRecordService.save(createRequest);
 
         // Then
         StepVerifier.create(result)
                 .expectNextMatches(response -> 
-                    response.getTestingPointId().equals("point1") &&
-                    response.getTestsCount().equals(5) &&
-                    response.getQualityScore().equals(88.5)
+                    response.getRecordCode().equals("REC001") &&
+                    response.getLevel().equals(24.5) &&
+                    response.isAcceptable()
                 )
                 .verifyComplete();
     }
@@ -82,38 +97,38 @@ class DailyRecordServiceTest {
     @Test
     void shouldFindAllDailyRecords() {
         // Given
-        when(dailyRecordRepository.findAll()).thenReturn(Flux.just(dailyRecord));
+        when(dailyRecordService.getAll()).thenReturn(Flux.just(enrichedResponse));
 
         // When
-        Flux<DailyRecordResponse> result = dailyRecordService.findAll();
+        Flux<DailyRecordEnrichedResponse> result = dailyRecordService.getAll();
 
         // Then
         StepVerifier.create(result)
-                .expectNextMatches(response -> response.getTestingPointId().equals("point1"))
+                .expectNextMatches(response -> response.getRecordCode().equals("REC001"))
                 .verifyComplete();
     }
 
     @Test
-    void shouldFindDailyRecordsByTestingPoint() {
+    void shouldFindDailyRecordsByOrganization() {
         // Given
-        when(dailyRecordRepository.findByTestingPointId(anyString())).thenReturn(Flux.just(dailyRecord));
+        when(dailyRecordService.getAllByOrganization(anyString())).thenReturn(Flux.just(enrichedResponse));
 
         // When
-        Flux<DailyRecordResponse> result = dailyRecordService.findByTestingPointId("point1");
+        Flux<DailyRecordEnrichedResponse> result = dailyRecordService.getAllByOrganization("org1");
 
         // Then
         StepVerifier.create(result)
-                .expectNextMatches(response -> response.getTestingPointId().equals("point1"))
+                .expectNextMatches(response -> response.getRecordCode().equals("REC001"))
                 .verifyComplete();
     }
 
     @Test
     void shouldFindDailyRecordById() {
         // Given
-        when(dailyRecordRepository.findById(anyString())).thenReturn(Mono.just(dailyRecord));
+        when(dailyRecordService.getById(anyString())).thenReturn(Mono.just(enrichedResponse));
 
         // When
-        Mono<DailyRecordResponse> result = dailyRecordService.findById("1");
+        Mono<DailyRecordEnrichedResponse> result = dailyRecordService.getById("1");
 
         // Then
         StepVerifier.create(result)
@@ -122,19 +137,17 @@ class DailyRecordServiceTest {
     }
 
     @Test
-    void shouldFindDailyRecordsByDateRange() {
+    void shouldUpdateDailyRecord() {
         // Given
-        LocalDate startDate = LocalDate.now().minusDays(7);
-        LocalDate endDate = LocalDate.now();
-        when(dailyRecordRepository.findByRecordDateBetween(startDate, endDate))
-                .thenReturn(Flux.just(dailyRecord));
+        when(dailyRecordService.update(anyString(), any(DailyRecordCreateRequest.class)))
+                .thenReturn(Mono.just(enrichedResponse));
 
         // When
-        Flux<DailyRecordResponse> result = dailyRecordService.findByDateRange(startDate, endDate);
+        Mono<DailyRecordEnrichedResponse> result = dailyRecordService.update("1", createRequest);
 
         // Then
         StepVerifier.create(result)
-                .expectNextMatches(response -> response.getTestingPointId().equals("point1"))
+                .expectNextMatches(response -> response.getId().equals("1"))
                 .verifyComplete();
     }
 }

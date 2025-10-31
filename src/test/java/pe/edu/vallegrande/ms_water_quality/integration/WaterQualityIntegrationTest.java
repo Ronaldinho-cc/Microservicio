@@ -15,14 +15,14 @@ class WaterQualityIntegrationTest {
         User user = new User();
         user.setName("Integration Test User");
         user.setEmail("integration@test.com");
-        user.setRole("TECHNICIAN");
-        user.setActive(true);
+        user.setPassword("password123");
+        user.setStatus("ACTIVE");
 
         TestingPoint testingPoint = new TestingPoint();
-        testingPoint.setName("Integration Test Point");
-        testingPoint.setDescription("Punto de prueba para integración");
-        testingPoint.setLocation("Lima, Perú");
-        testingPoint.setActive(true);
+        testingPoint.setPointName("Integration Test Point");
+        testingPoint.setLocationDescription("Punto de prueba para integración");
+        testingPoint.setPointType("RESERVORIO");
+        testingPoint.setStatus("ACTIVE");
 
         TestingPoint.Coordinates coordinates = new TestingPoint.Coordinates();
         coordinates.setLatitude(-12.0464);
@@ -31,8 +31,8 @@ class WaterQualityIntegrationTest {
 
         // When & Then
         assert user.getName().equals("Integration Test User");
-        assert testingPoint.getName().equals("Integration Test Point");
-        assert testingPoint.getCoordinates().getLatitude().equals(-12.0464);
+        assert testingPoint.getPointName().equals("Integration Test Point");
+        assert testingPoint.getCoordinates().getLatitude() == -12.0464;
     }
 
     @Test
