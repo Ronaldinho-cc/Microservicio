@@ -1,77 +1,114 @@
 pipeline {
     agent any
 
-    environment {
-        // 🔐 Credenciales seguras
-        SONAR_TOKEN = credentials('SONAR_TOKEN')
-
-        // 🔑 Configuración de SonarCloud
-        SONAR_PROJECT_KEY = '366ba08a8b01e3ccd5bccae92ecb89466fceef01'
-        SONAR_ORG = 'ronaldinhoccencho'
+    tools {
+        jdk 'Java17'
+        maven 'M3'
     }
 
-    tools {
-        jdk 'jdk17'
-        maven 'Maven3'
+    environment {
+        GITHUB_REPO = 'https://github.com/Ronaldinho-cc/Microservicio.git'
+        MAVEN_OPTS = '-Xmx1024m'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                echo '📦 Clonando el repositorio...'
-                checkout scm
+                echo '📦 Clonando repositorio...'
+                git branch: 'main', url: "${GITHUB_REPO}"
             }
         }
 
         stage('Build') {
             steps {
-                echo '⚙️ Compilando el proyecto con Maven...'
-                sh 'mvn -B clean verify'
+                echo '⚙️ Compilando el proyecto...'
+                sh 'mvn clean compile'
             }
         }
 
-        stage('SonarCloud Analysis') {
+        stage('Unit Tests') {
             steps {
-                withSonarQubeEnv('SonarCloud') {
-                    echo '🔍 Ejecutando análisis en SonarCloud...'
-                    sh """
-                        mvn sonar:sonar \
-                            -Dsonar.projectKey=${SONAR_PROJECT_KEY} \
-                            -Dsonar.organization=${SONAR_ORG} \
-                            -Dsonar.host.url=https://sonarcloud.io \
-                            -Dsonar.token=${SONAR_TOKEN}
-                    """
+                echo '🧪 Ejecutando pruebas unitarias...'
+                sh 'mvn test -Dspring.profiles.active=test'
+            }
+            post {
+                always {
+                    echo '📄 Publicando resultados de pruebas...'
+                    junit 'target/surefire-reports/*.xml'
+
+                    script {
+                        if (fileExists('target/site/jacoco/jacoco.xml')) {
+                            recordCoverage(
+                                tools: [[parser: 'JACOCO', pattern: 'target/site/jacoco/jacoco.xml']],
+                                sourceCodeRetention: 'EVERY_BUILD',
+                                failNoReports: false
+                            )
+                        } else {
+                            echo '⚠️ No se encontró el reporte de JaCoCo'
+                        }
+                    }
                 }
             }
         }
 
-        stage('Package') {
-            when {
-                expression { currentBuild.result == null || currentBuild.result == 'SUCCESS' }
-            }
+        stage('Integration Tests') {
             steps {
-                echo '📦 Empaquetando el artefacto final (JAR ejecutable)...'
-                sh 'mvn clean package -DskipTests'
-
-                echo '📂 Listando archivos generados...'
-                sh 'ls -l target'
+                echo '🔗 Ejecutando pruebas de integración...'
+                sh 'mvn test -Dtest=*IntegrationTest'
+            }
+            post {
+                always {
+                    junit 'target/surefire-reports/*.xml'
+                }
             }
         }
 
-        stage('Archive Artifact') {
+        stage('Code Analysis') {
             steps {
-                echo '💾 Archivando el archivo JAR generado...'
-                archiveArtifacts artifacts: 'target/*.jar', fingerprint: true
+                echo '🔍 Analizando código con SonarCloud...'
+                withCredentials([string(credentialsId: 'sonar', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                        mvn clean verify sonar:sonar \
+                            -Dsonar.projectKey=PRS-Back \
+                            -Dsonar.organization=marialazaro \
+                            -Dsonar.host.url=https://sonarcloud.io \
+                            -Dsonar.token=$SONAR_TOKEN
+                    '''
+                }
             }
         }
     }
 
     post {
+        always {
+            echo '🧹 Limpiando workspace...'
+            cleanWs()
+        }
         success {
-            echo '✅ Pipeline ejecutado exitosamente. Artefacto JAR disponible en Jenkins.'
+            echo '✅ Pipeline ejecutado con éxito!'
+            slackSend(
+                channel: '#prs-revisión',
+                color: 'good',
+                message: """
+                ✅ *BUILD EXITOSO*
+                Proyecto: *${env.JOB_NAME}*
+                Build: *#${env.BUILD_NUMBER}*
+                Ver detalles: ${env.BUILD_URL}
+                """
+            )
         }
         failure {
-            echo '❌ Falló la ejecución del pipeline.'
+            echo '❌ Pipeline falló!'
+            slackSend(
+                channel: '#prs-revisión',
+                color: 'danger',
+                message: """
+                ❌ *BUILD FALLIDO*
+                Proyecto: *${env.JOB_NAME}*
+                Build: *#${env.BUILD_NUMBER}*
+                Ver detalles: ${env.BUILD_URL}
+                """
+            )
         }
     }
 }
