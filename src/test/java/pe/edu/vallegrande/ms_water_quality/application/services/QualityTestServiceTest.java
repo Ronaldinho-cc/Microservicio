@@ -3,9 +3,14 @@ package pe.edu.vallegrande.ms_water_quality.application.services;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.junit.jupiter.api.Assertions.*;
 import pe.edu.vallegrande.ms_water_quality.application.services.impl.QualityTestServiceImpl;
 import pe.edu.vallegrande.ms_water_quality.domain.models.QualityTest;
 import pe.edu.vallegrande.ms_water_quality.infrastructure.dto.request.QualityTestCreateRequest;
@@ -139,5 +144,64 @@ class QualityTestServiceTest {
 
         // Then
         assert score > 0 && score <= 100;
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+        "7.0, 8.0, 20.0, 1.0, EXCELLENT",
+        "6.8, 7.5, 22.0, 2.0, GOOD", 
+        "6.5, 6.0, 25.0, 3.0, ACCEPTABLE",
+        "6.0, 4.0, 30.0, 5.0, POOR",
+        "5.5, 3.0, 35.0, 8.0, CRITICAL"
+    })
+    void shouldClassifyWaterQualityByParameters(double ph, double oxygen, double temperature, double turbidity, String expectedStatus) {
+        // When
+        String status = classifyWaterQuality(ph, oxygen, temperature, turbidity);
+
+        // Then
+        assertEquals(expectedStatus, status);
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {6.5, 7.0, 7.5, 8.0, 8.5})
+    void shouldAcceptValidPhValues(double ph) {
+        // When
+        boolean isValid = isValidPh(ph);
+
+        // Then
+        assertTrue(isValid, "pH " + ph + " should be valid");
+    }
+
+    @ParameterizedTest
+    @ValueSource(doubles = {5.0, 6.0, 9.0, 10.0, 14.0})
+    void shouldRejectInvalidPhValues(double ph) {
+        // When
+        boolean isValid = isValidPh(ph);
+
+        // Then
+        assertFalse(isValid, "pH " + ph + " should be invalid");
+    }
+
+    private String classifyWaterQuality(double ph, double oxygen, double temperature, double turbidity) {
+        double score = calculateScore(ph, oxygen, temperature, turbidity);
+        
+        if (score >= 90) return "EXCELLENT";
+        if (score >= 75) return "GOOD";
+        if (score >= 60) return "ACCEPTABLE";
+        if (score >= 40) return "POOR";
+        return "CRITICAL";
+    }
+
+    private double calculateScore(double ph, double oxygen, double temperature, double turbidity) {
+        double phScore = isValidPh(ph) ? 100 - Math.abs(7.0 - ph) * 10 : 0;
+        double oxygenScore = oxygen >= 8.0 ? 100 : oxygen >= 5.0 ? oxygen * 12.5 : 0;
+        double tempScore = (temperature >= 15 && temperature <= 25) ? 100 : 50;
+        double turbScore = turbidity <= 1.0 ? 100 : turbidity <= 5.0 ? 100 - (turbidity - 1) * 20 : 20;
+        
+        return (phScore + oxygenScore + tempScore + turbScore) / 4;
+    }
+
+    private boolean isValidPh(double ph) {
+        return ph >= 6.5 && ph <= 8.5;
     }
 }

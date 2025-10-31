@@ -49,10 +49,16 @@ pipeline {
 
         stage('Unit Tests') {
             steps {
-                echo '🧪 Ejecutando pruebas unitarias...'
+                echo '🧪 Ejecutando pruebas unitarias con cobertura...'
                 script {
                     try {
-                        sh 'mvn test -s maven-settings.xml -Dsurefire.failIfNoSpecifiedTests=false'
+                        sh '''
+                            mvn clean test jacoco:report \
+                                -s maven-settings.xml \
+                                -Dsurefire.failIfNoSpecifiedTests=false \
+                                -Djacoco.destFile=target/jacoco.exec
+                        '''
+                        echo '✅ Pruebas unitarias completadas'
                     } catch (Exception e) {
                         echo "⚠️ Algunas pruebas fallaron: ${e.getMessage()}"
                         currentBuild.result = 'UNSTABLE'
@@ -62,24 +68,34 @@ pipeline {
             post {
                 always {
                     script {
-                        // Verificar si existen reportes de pruebas
-                        def testReports = sh(script: 'find target/surefire-reports -name "*.xml" 2>/dev/null || true', returnStdout: true).trim()
-                        if (testReports) {
-                            echo '📄 Publicando resultados de pruebas...'
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
-                        } else {
-                            echo '⚠️ No se encontraron reportes de pruebas unitarias'
+                        // Listar archivos generados para debug
+                        sh 'find target -type f -name "*.xml" | head -10 || echo "No XML files found"'
+                        
+                        // Publicar resultados de pruebas
+                        try {
+                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+                            echo '✅ Resultados de pruebas publicados'
+                        } catch (Exception e) {
+                            echo "⚠️ Error publicando resultados de pruebas: ${e.getMessage()}"
                         }
 
-                        // Verificar si existe reporte de JaCoCo
-                        if (fileExists('target/site/jacoco/jacoco.xml')) {
-                            recordCoverage(
-                                tools: [[parser: 'JACOCO', pattern: 'target/site/jacoco/jacoco.xml']],
-                                sourceCodeRetention: 'EVERY_BUILD',
-                                failNoReports: false
-                            )
-                        } else {
-                            echo '⚠️ No se encontró el reporte de JaCoCo'
+                        // Publicar reporte de cobertura JaCoCo
+                        try {
+                            if (fileExists('target/site/jacoco/jacoco.xml')) {
+                                publishHTML([
+                                    allowMissing: false,
+                                    alwaysLinkToLastBuild: true,
+                                    keepAll: true,
+                                    reportDir: 'target/site/jacoco',
+                                    reportFiles: 'index.html',
+                                    reportName: 'JaCoCo Coverage Report'
+                                ])
+                                echo '✅ Reporte de cobertura JaCoCo publicado'
+                            } else {
+                                echo '⚠️ No se encontró el reporte de JaCoCo'
+                            }
+                        } catch (Exception e) {
+                            echo "⚠️ Error publicando cobertura: ${e.getMessage()}"
                         }
                     }
                 }
@@ -91,21 +107,26 @@ pipeline {
                 echo '🔗 Ejecutando pruebas de integración...'
                 script {
                     try {
-                        sh 'mvn test -s maven-settings.xml -Dtest=*IntegrationTest -Dsurefire.failIfNoSpecifiedTests=false'
+                        sh '''
+                            mvn test -s maven-settings.xml \
+                                -Dtest=*IntegrationTest,*PerformanceTest \
+                                -Dsurefire.failIfNoSpecifiedTests=false
+                        '''
+                        echo '✅ Pruebas de integración completadas'
                     } catch (Exception e) {
-                        echo "⚠️ No hay pruebas de integración definidas aún: ${e.getMessage()}"
-                        echo '✅ Continuando con el pipeline...'
+                        echo "⚠️ Algunas pruebas de integración fallaron: ${e.getMessage()}"
+                        currentBuild.result = 'UNSTABLE'
                     }
                 }
             }
             post {
                 always {
                     script {
-                        def testReports = sh(script: 'find target/surefire-reports -name "*.xml" 2>/dev/null || true', returnStdout: true).trim()
-                        if (testReports) {
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/*.xml'
-                        } else {
-                            echo '⚠️ No se encontraron reportes de pruebas de integración'
+                        try {
+                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+                            echo '✅ Resultados de integración publicados'
+                        } catch (Exception e) {
+                            echo "⚠️ Error publicando resultados de integración: ${e.getMessage()}"
                         }
                     }
                 }
