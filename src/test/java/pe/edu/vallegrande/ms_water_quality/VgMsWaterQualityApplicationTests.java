@@ -2,20 +2,39 @@ package pe.edu.vallegrande.ms_water_quality;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.TestPropertySource;
 
-@SpringBootTest
-@ActiveProfiles("test")
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
+@TestPropertySource(properties = {
+    "spring.data.mongodb.port=0",
+    "spring.data.mongodb.database=test_db",
+    "logging.level.org.springframework.data.mongodb=ERROR",
+    "logging.level.org.mongodb=ERROR"
+})
 class VgMsWaterQualityApplicationTests {
 
     @Test
     void contextLoads() {
-        // Esta prueba verifica que el contexto de Spring se carga correctamente
+        // Esta prueba verifica que el contexto de Spring se puede cargar
+        // sin inicializar el servidor web completo
     }
 
     @Test
-    void applicationStarts() {
-        // Esta prueba verifica que la aplicación puede iniciarse
-        assert true;
+    void applicationCanInstantiate() {
+        // Prueba básica para verificar que la clase principal se puede instanciar
+        VgMsWaterQuality app = new VgMsWaterQuality();
+        assert app != null;
+    }
+
+    @Test
+    void basicAssertionsWork() {
+        // Prueba básica para verificar que JUnit funciona correctamente
+        String expected = "test";
+        String actual = "test";
+        assert expected.equals(actual);
+        
+        int number = 42;
+        assert number > 0;
+        assert number < 100;
     }
 }

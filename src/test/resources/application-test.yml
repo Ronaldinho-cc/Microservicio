@@ -1,8 +1,5 @@
+# Configuración MongoDB para pruebas (embebido)
 spring:
-  profiles:
-    active: test
-  
-  # Configuración MongoDB para pruebas (embebido)
   data:
     mongodb:
       database: test_water_quality
