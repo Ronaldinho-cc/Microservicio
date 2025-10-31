@@ -7,7 +7,7 @@ pipeline {
 
         // 🔑 Configuración de SonarCloud
         SONAR_PROJECT_KEY = '366ba08a8b01e3ccd5bccae92ecb89466fceef01'
-        SONAR_ORG = 'mariaavilaconde'
+        SONAR_ORG = 'ronaldinhoccencho'
     }
 
     tools {
