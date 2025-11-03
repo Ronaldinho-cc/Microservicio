@@ -32,14 +32,12 @@ pipeline {
             }
         }
 
-        stage('Build & Install') { // Cambiado a 'Install' para tener el JAR listo
+        stage('Build & Compile') {
             steps {
-                echo '⚙️ Compilando, ejecutando Unit Tests y generando Jacoco...'
-                // Usamos 'install' para que el JAR esté en el repositorio local para otras dependencias.
-                // Usamos -DskipTests para compilar primero sin ejecutar tests.
+                echo '⚙️ Compilando proyecto...'
                 retry(3) {
                     sh '''
-                        mvn install -DskipTests \
+                        mvn compile \
                             -s maven-settings.xml \
                             -Dmaven.wagon.http.retryHandler.count=3 \
                             -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 \
@@ -49,17 +47,15 @@ pipeline {
             }
         }
 
-        stage('Unit Tests & Jacoco') { // Separamos la ejecución de tests después de la compilación
+        stage('Unit Tests & Jacoco') {
             steps {
                 echo '🧪 Ejecutando pruebas unitarias con cobertura...'
                 script {
                     try {
-                        // EJECUCIÓN: Usamos 'test' (no 'clean test') y jacoco:report
                         sh '''
                             mvn test jacoco:report \
                                 -s maven-settings.xml \
-                                -Dsurefire.failIfNoSpecifiedTests=false \
-                                -Djacoco.destFile=target/jacoco.exec
+                                -Dsurefire.failIfNoSpecifiedTests=false
                         '''
                         echo '✅ Pruebas unitarias completadas'
                     } catch (Exception e) {
@@ -82,18 +78,17 @@ pipeline {
 
                         // Publicar reporte de cobertura JaCoCo
                         try {
-                            if (fileExists('target/site/jacoco/index.html')) {
-                                publishHTML([
-                                    allowMissing: false,
-                                    alwaysLinkToLastBuild: true,
-                                    keepAll: true,
-                                    reportDir: 'target/site/jacoco',
-                                    reportFiles: 'index.html',
-                                    reportName: 'JaCoCo Coverage Report'
-                                ])
+                            if (fileExists('target/site/jacoco/jacoco.xml')) {
+                                jacoco execPattern: 'target/jacoco.exec'
                                 echo '✅ Reporte de cobertura JaCoCo publicado'
                             } else {
                                 echo '⚠️ No se encontró el reporte de JaCoCo'
+                            }
+                            
+                            // También archivar los reportes HTML
+                            if (fileExists('target/site/jacoco/index.html')) {
+                                archiveArtifacts artifacts: 'target/site/jacoco/**/*', allowEmptyArchive: true
+                                echo '✅ Reportes HTML de JaCoCo archivados'
                             }
                         } catch (Exception e) {
                             echo "⚠️ Error publicando cobertura: ${e.getMessage()}"
@@ -141,15 +136,14 @@ pipeline {
             steps {
                 echo '🔍 Analizando código con SonarCloud...'
                 withCredentials([string(credentialsId: 'sonarcloud-token', variable: 'SONAR_TOKEN')]) {
-                    // Usamos 'verify' en lugar de 'clean compile sonar:sonar' para no limpiar resultados.
                     sh '''
-                        mvn verify sonar:sonar \
+                        mvn package sonar:sonar \
                             -s maven-settings.xml \
                             -Dsonar.projectKey=MiAppBackend \
                             -Dsonar.organization=ronaldinho-cc \
                             -Dsonar.host.url=https://sonarcloud.io \
                             -Dsonar.token=$SONAR_TOKEN \
-                            -Dsonar.skipTests=true
+                            -DskipTests=true
                     '''
                 }
             }

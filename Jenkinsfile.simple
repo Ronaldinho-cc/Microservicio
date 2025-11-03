@@ -1,0 +1,122 @@
+pipeline {
+    agent any
+
+    parameters {
+        booleanParam(name: 'CLEAN_MAVEN_CACHE', defaultValue: false, description: 'Limpiar caché de Maven antes del build')
+    }
+
+    tools {
+        jdk 'Java17'
+        maven 'M3'
+    }
+
+    environment {
+        GITHUB_REPO = 'https://github.com/Ronaldinho-cc/Microservicio.git'
+        MAVEN_OPTS = '-Xmx1024m -Dmaven.wagon.http.retryHandler.count=3'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                echo '📦 Clonando repositorio...'
+                git branch: 'develop-clean', url: "${GITHUB_REPO}"
+                
+                script {
+                    if (params.CLEAN_MAVEN_CACHE == true) {
+                        sh 'rm -rf ~/.m2/repository'
+                        echo '✅ Caché de Maven limpiada'
+                    }
+                }
+            }
+        }
+
+        stage('Build & Test') {
+            steps {
+                echo '⚙️ Compilando y ejecutando pruebas...'
+                retry(3) {
+                    sh '''
+                        mvn clean test \
+                            -s maven-settings.xml \
+                            -Dmaven.wagon.http.retryHandler.count=3 \
+                            -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 \
+                            -Dmaven.wagon.http.pool=false
+                    '''
+                }
+            }
+            post {
+                always {
+                    // Publicar resultados de pruebas
+                    junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+                    
+                    // Archivar reportes
+                    archiveArtifacts artifacts: 'target/surefire-reports/**/*', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                echo '📦 Empaquetando aplicación...'
+                sh '''
+                    mvn package -DskipTests \
+                        -s maven-settings.xml
+                '''
+            }
+            post {
+                always {
+                    // Archivar el JAR generado
+                    archiveArtifacts artifacts: 'target/*.jar', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Code Analysis') {
+            steps {
+                echo '🔍 Analizando código con SonarCloud...'
+                withCredentials([string(credentialsId: 'sonarcloud-token', variable: 'SONAR_TOKEN')]) {
+                    sh '''
+                        mvn sonar:sonar \
+                            -s maven-settings.xml \
+                            -Dsonar.projectKey=MiAppBackend \
+                            -Dsonar.organization=ronaldinho-cc \
+                            -Dsonar.host.url=https://sonarcloud.io \
+                            -Dsonar.token=$SONAR_TOKEN
+                    '''
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo '🧹 Limpiando workspace...'
+            cleanWs()
+        }
+        success {
+            echo '✅ Pipeline ejecutado con éxito!'
+            slackSend(
+                channel: '#jenkins-test',
+                color: 'good',
+                message: """
+                ✅ *BUILD EXITOSO*
+                Proyecto: *${env.JOB_NAME}*
+                Build: *#${env.BUILD_NUMBER}*
+                Ver detalles: ${env.BUILD_URL}
+                """
+            )
+        }
+        failure {
+            echo '❌ Pipeline falló!'
+            slackSend(
+                channel: '#jenkins-test',
+                color: 'danger',
+                message: """
+                ❌ *BUILD FALLIDO*
+                Proyecto: *${env.JOB_NAME}*
+                Build: *#${env.BUILD_NUMBER}*
+                Ver detalles: ${env.BUILD_URL}
+                """
+            )
+        }
+    }
+}
