@@ -9,7 +9,8 @@ import org.springframework.test.context.TestPropertySource;
     "spring.data.mongodb.port=0",
     "spring.data.mongodb.database=test_db",
     "logging.level.org.springframework.data.mongodb=ERROR",
-    "logging.level.org.mongodb=ERROR"
+    "logging.level.org.mongodb=ERROR",
+    "de.flapdoodle.mongodb.embedded.version=4.4.18"
 })
 class VgMsWaterQualityApplicationTests {
 
