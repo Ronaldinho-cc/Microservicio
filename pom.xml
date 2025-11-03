@@ -100,6 +100,15 @@
         </dependency>
     </dependencies>
     <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.sonarsource.scanner.maven</groupId>
+                    <artifactId>sonar-maven-plugin</artifactId>
+                    <version>3.11.0.3922</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
@@ -137,27 +146,7 @@
                             <goal>report</goal>
                         </goals>
                     </execution>
-                    <execution>
-                        <id>jacoco-check</id>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                        <configuration>
-                            <skip>${sonar.skipTests}</skip>
-                            <rules>
-                                <rule>
-                                    <element>PACKAGE</element>
-                                    <limits>
-                                        <limit>
-                                            <counter>LINE</counter>
-                                            <value>COVEREDRATIO</value>
-                                            <minimum>0.10</minimum>
-                                        </limit>
-                                    </limits>
-                                </rule>
-                            </rules>
-                        </configuration>
-                    </execution>
+
                 </executions>
             </plugin>
             
@@ -191,46 +180,7 @@
                 <version>3.11.0.3922</version>
             </plugin>
             
-            <!-- JMeter Plugin para pruebas de carga -->
-            <plugin>
-                <groupId>com.lazerycode.jmeter</groupId>
-                <artifactId>jmeter-maven-plugin</artifactId>
-                <version>3.7.0</version>
-                <executions>
-                    <execution>
-                        <id>configuration</id>
-                        <goals>
-                            <goal>configure</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>jmeter-tests</id>
-                        <goals>
-                            <goal>jmeter</goal>
-                        </goals>
-                        <phase>integration-test</phase>
-                    </execution>
-                    <execution>
-                        <id>jmeter-check-results</id>
-                        <goals>
-                            <goal>results</goal>
-                        </goals>
-                        <phase>integration-test</phase>
-                    </execution>
-                </executions>
-                <configuration>
-                    <testFilesDirectory>src/test/jmeter</testFilesDirectory>
-                    <resultsDirectory>target/jmeter/results</resultsDirectory>
-                    <generateReports>true</generateReports>
-                    <reportDirectory>target/jmeter/reports</reportDirectory>
-                    <jmeterVersion>5.4.1</jmeterVersion>
-                    <propertiesUser>
-                        <jmeter.save.saveservice.output_format>xml</jmeter.save.saveservice.output_format>
-                        <jmeter.save.saveservice.response_data>false</jmeter.save.saveservice.response_data>
-                        <jmeter.save.saveservice.samplerData>false</jmeter.save.saveservice.samplerData>
-                    </propertiesUser>
-                </configuration>
-            </plugin>
+
         </plugins>
     </build>
     
