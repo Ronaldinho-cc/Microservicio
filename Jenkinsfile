@@ -13,7 +13,7 @@ pipeline {
     environment {
         GITHUB_REPO = 'https://github.com/Ronaldinho-cc/Microservicio.git'
         MAVEN_OPTS = '-Xmx1024m -Dmaven.wagon.http.retryHandler.count=3'
-        MAVEN_CONFIG = '-Dmaven.wagon.httpconnectionManager.ttlSeconds=120'
+        // MAVEN_CONFIG se puede dejar fuera ya que usas las propiedades en los comandos sh
     }
 
     stages {
@@ -32,12 +32,14 @@ pipeline {
             }
         }
 
-        stage('Build') {
+        stage('Build & Install') { // Cambiado a 'Install' para tener el JAR listo
             steps {
-                echo '⚙️ Compilando el proyecto...'
+                echo '⚙️ Compilando, ejecutando Unit Tests y generando Jacoco...'
+                // Usamos 'install' para que el JAR esté en el repositorio local para otras dependencias.
+                // Usamos -DskipTests para compilar primero sin ejecutar tests.
                 retry(3) {
                     sh '''
-                        mvn clean compile \
+                        mvn install -DskipTests \
                             -s maven-settings.xml \
                             -Dmaven.wagon.http.retryHandler.count=3 \
                             -Dmaven.wagon.httpconnectionManager.ttlSeconds=120 \
@@ -47,20 +49,21 @@ pipeline {
             }
         }
 
-        stage('Unit Tests') {
+        stage('Unit Tests & Jacoco') { // Separamos la ejecución de tests después de la compilación
             steps {
                 echo '🧪 Ejecutando pruebas unitarias con cobertura...'
                 script {
                     try {
+                        // EJECUCIÓN: Usamos 'test' (no 'clean test') y jacoco:report
                         sh '''
-                            mvn clean test jacoco:report \
+                            mvn test jacoco:report \
                                 -s maven-settings.xml \
                                 -Dsurefire.failIfNoSpecifiedTests=false \
                                 -Djacoco.destFile=target/jacoco.exec
                         '''
                         echo '✅ Pruebas unitarias completadas'
                     } catch (Exception e) {
-                        echo "⚠️ Algunas pruebas fallaron: ${e.getMessage()}"
+                        echo "⚠️ Algunas pruebas unitarias fallaron: ${e.getMessage()}"
                         currentBuild.result = 'UNSTABLE'
                     }
                 }
@@ -68,20 +71,18 @@ pipeline {
             post {
                 always {
                     script {
-                        // Listar archivos generados para debug
-                        sh 'find target -type f -name "*.xml" | head -10 || echo "No XML files found"'
-                        
-                        // Publicar resultados de pruebas
+                        // Publicar resultados de pruebas de Unit Tests
                         try {
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
-                            echo '✅ Resultados de pruebas publicados'
+                            // Usamos **/surefire-reports/TEST-*.xml para capturar el último run de tests
+                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml' 
+                            echo '✅ Resultados de pruebas unitarias publicados'
                         } catch (Exception e) {
                             echo "⚠️ Error publicando resultados de pruebas: ${e.getMessage()}"
                         }
 
                         // Publicar reporte de cobertura JaCoCo
                         try {
-                            if (fileExists('target/site/jacoco/jacoco.xml')) {
+                            if (fileExists('target/site/jacoco/index.html')) {
                                 publishHTML([
                                     allowMissing: false,
                                     alwaysLinkToLastBuild: true,
@@ -107,8 +108,10 @@ pipeline {
                 echo '🔗 Ejecutando pruebas de integración...'
                 script {
                     try {
+                        // EJECUCIÓN: No usar 'clean'
                         sh '''
-                            mvn test -s maven-settings.xml \
+                            mvn failsafe:integration-test \
+                                -s maven-settings.xml \
                                 -Dtest=*IntegrationTest,*PerformanceTest \
                                 -Dsurefire.failIfNoSpecifiedTests=false
                         '''
@@ -123,7 +126,8 @@ pipeline {
                 always {
                     script {
                         try {
-                            junit allowEmptyResults: true, testResults: 'target/surefire-reports/TEST-*.xml'
+                            // Usar el plugin 'failsafe' para Integration Tests
+                            junit allowEmptyResults: true, testResults: 'target/failsafe-reports/TEST-*.xml' 
                             echo '✅ Resultados de integración publicados'
                         } catch (Exception e) {
                             echo "⚠️ Error publicando resultados de integración: ${e.getMessage()}"
@@ -137,8 +141,9 @@ pipeline {
             steps {
                 echo '🔍 Analizando código con SonarCloud...'
                 withCredentials([string(credentialsId: 'sonarcloud-token', variable: 'SONAR_TOKEN')]) {
+                    // Usamos 'verify' en lugar de 'clean compile sonar:sonar' para no limpiar resultados.
                     sh '''
-                        mvn clean compile sonar:sonar \
+                        mvn verify sonar:sonar \
                             -s maven-settings.xml \
                             -Dsonar.projectKey=MiAppBackend \
                             -Dsonar.organization=ronaldinho-cc \
@@ -178,7 +183,7 @@ pipeline {
                 ❌ *BUILD FALLIDO*
                 Proyecto: *${env.JOB_NAME}*
                 Build: *#${env.BUILD_NUMBER}*
-                Ver detalles: ${env.BUILD_URL}
+                *${currentBuild.result}* - Ver detalles: ${env.BUILD_URL}
                 """
             )
         }
